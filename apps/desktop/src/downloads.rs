@@ -20,9 +20,9 @@ const DOWNLOAD_EDGE: u32 = 2048;
 const DOWNLOAD_ATTEMPTS: u32 = 3;
 const RETRY_DELAY: Duration = Duration::from_millis(150);
 /// Copied images share the composer's pasted-image budget, so a 4K or 5K screenshot can be
-/// copied from a message as well as pasted. Four RGBA copies cover decode, conversion and the
-/// clipboard payload.
-const MAX_COPY_ALLOC: u64 = 4 * ui::MAX_PASTE_PIXELS as u64;
+/// copied from a message as well as pasted. Dimensions are checked before decoding, so this
+/// byte budget only caps the decoder's own buffers above one RGBA frame at that pixel budget.
+const MAX_COPY_ALLOC: u64 = 5 * ui::MAX_PASTE_PIXELS as u64;
 const COPY_PIXELS_EXCEEDED: &str =
 	"Copy images with at most 16 million pixels; save larger images instead";
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -760,6 +760,14 @@ mod tests {
 		assert_eq!(
 			clipboard_image(&file.path).unwrap().dimensions(),
 			(4096, 1025)
+		);
+		// A 5K screenshot is wider than the old decoder edge cap but still inside the pixel budget.
+		image::RgbaImage::new(5120, 2880)
+			.save_with_format(&file.path, image::ImageFormat::Png)
+			.unwrap();
+		assert_eq!(
+			clipboard_image(&file.path).unwrap().dimensions(),
+			(5120, 2880)
 		);
 		fs::write(&file.path, b"not an image").unwrap();
 		assert!(clipboard_image(&file.path).is_err());
